@@ -15,7 +15,7 @@ exports.preRegister = (req, res) => {
                 error: 'Email is taken'
             })
         }
-        const token = jwt.sign({ name, email, password }, process.env.JWT_ACCOUNT_ACTIVATION, { expiresIn: '1d' })
+        const token = jwt.sign({ name, email, password }, process.env.JWT_ACCOUNT_ACTIVATION, { expiresIn: '10m' })
 
         const mailOptions = {
             from: process.env.EMAIL_FROM,
