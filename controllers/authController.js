@@ -2,6 +2,7 @@ const Auth = require('../models/authModel')
 const jwt = require('jsonwebtoken')
 const expressJwt = require('express-jwt')
 const shortId = require('shortid')
+const _ = require('lodash')
 const { transporter } = require('../utils/common')
 const { errorHandler } = require('../helpers/dbErrorHandle')
 
@@ -9,7 +10,7 @@ const { errorHandler } = require('../helpers/dbErrorHandle')
 exports.preRegister = (req, res) => {
     const { name, email, password } = req.body
     
-    Auth.findOne({ email: email.toLowerCase() }, (err, user) => {
+    Auth.findOne({ email: email.toLowerCase() }, ((err, user) => {
         if (user || err) {
             return res.status(400).json({
                 error: 'Email is taken'
@@ -33,13 +34,15 @@ exports.preRegister = (req, res) => {
                 message: `Eamil has been sent to ${email} Follow this instruction to activate your account.`
             })
         })
-    })   
+    }))
 }
 
 exports.register = (req, res) => {
     const token = req.body.token
+    console.log('decode', jwt.decode(token))
     if (token) {
         jwt.verify(token, process.env.JWT_ACCOUNT_ACTIVATION, function (err, decoded) {
+            console.log('ser', err)
             if (err) {
                 return res.status(401).json({
                     error: 'Expired link. Signup again'
@@ -105,10 +108,84 @@ exports.logout = (req, res) => {
 }
 
 
+exports.forgotPassword = (req, res) => {
+    const { email } = req.body
+    Auth.findOne({ email })
+        .exec((err, user) => {
+            if (err || !user) {
+                return res.status(400).json({
+                    error: 'User with that email does not exist!'
+                })
+            }
+            const token = jwt.sign({ _id: user._id }, process.env.JWT_RESET_PASSWORD, { expiresIn: '10m' })
+
+            const mailOptions = {
+                from: process.env.EMAIL_FROM,
+                to: email,
+                subject: 'Password reset link',
+                html: `
+                    <p>Please use the following link to reset your password</p>
+                    <p>${process.env.CLIENT_URL}/auth/password/reset/${token}</p>
+                    <hr/>
+                    <p>This email may contain sensitive information</p>
+                `
+            }
+
+            return user.updateOne({ resetPasswordLink: token })
+                .exec((err, success) => {
+                    if (err) {
+                        return res.json({error: errorHandler(err)})
+                    } else {
+                        transporter.sendMail(mailOptions, function () {
+                            return res.json({
+                                message: `Eamil has been sent to ${email} Follow this instruction to reset your password.`
+                            })
+                        })
+                    }
+
+                }) 
+            
+        })
+}
 
 
+exports.resetPassword = (req, res) => {
+    const { resetPasswordLink, newPassword } = req.body
+    if (resetPasswordLink) {
+        jwt.verify(resetPasswordLink, process.env.JWT_RESET_PASSWORD, function (err, docoded) {
+            if (err) {
+                return res.status(401).json({
+                    error: 'Expired link. Try again!'
+                })
+            }
 
+            Auth.findOne({ resetPasswordLink }, ((err, user) => {
+                if (err || !user) {
+                    return res.status(401).json({
+                        error: 'Something went wrong. Try again!'
+                    })
+                }
+                const updateFields = {
+                    password: newPassword,
+                    resetPasswordLink: ''
+                }
 
+                user = _.extend(user, updateFields)
+                user.save((err, result) => {
+                    if (err) {
+                        return res.status(401).json({
+                            error: errorHandler(err)
+                        })
+                    }
+                    res.json({
+                        message: 'Great! now you can login with your new password!'
+                    })
+                })
+
+            }))
+        })
+    }
+}
 
 
 
