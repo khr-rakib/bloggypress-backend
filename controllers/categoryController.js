@@ -3,6 +3,7 @@ const slugify = require('slugify')
 const formidable = require('formidable')
 const fs = require('fs')
 const _ = require('lodash')
+const { errorHandler } = require('../helpers/dbErrorHandle')
 
 exports.create = (req, res) => {
     let form = new formidable.IncomingForm()
@@ -40,7 +41,9 @@ exports.create = (req, res) => {
                     error: errorHandler(err)
                 });
             }
-            res.json(result)
+            res.json({
+                message: 'Category created successfully!'
+            })
         })
     })
 }
@@ -62,7 +65,9 @@ exports.read = (req, res) => {
 
 exports.list = (req, res) => {
     Category.find({})
-        .select('_id name slug')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('_id name slug')        
         .exec((err, data) => {
             if (err) {
                 return res.status(400).json({
@@ -111,7 +116,9 @@ exports.update = (req, res) => {
                         })
                     }
                     result.photo = undefined
-                    return res.json(result)
+                    return res.json({
+                        message: 'Category updated!'
+                    })
                 })
             })
         })
@@ -130,5 +137,21 @@ exports.remove = (req, res) => {
             return res.json({
                 message: "Category deleted successfully!"
             })
+        })
+}
+
+
+exports.photo = (req, res) => {
+    const slug = req.params.slug.toLowerCase()
+    Category.findOne({ slug })
+        .select('photo')
+        .exec((err, category) => {
+            if (err || !category) {
+                return res.status(400).json({
+                    error: errorHandler(err)
+                })
+            }
+            res.set('Content-Type', category.photo.contentType)
+            return res.send(category.photo.data)
         })
 }
