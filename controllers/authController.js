@@ -187,7 +187,10 @@ exports.resetPassword = (req, res) => {
     }
 }
 
-
+exports.requireLogin = expressJwt({
+    secret: process.env.JWT_SECRET,
+    algorithms: ['HS256']
+})
 
 
 
